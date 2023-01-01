@@ -1,0 +1,805 @@
+---
+title: "AN INVESTIGATION OF FEATURE SELECTION METHODS FOR CLASSIFICATION PURPOSES USING SUPERVISED MACHINE LEARNING"
+author: "M.Sc. Buse Nur BALTACIOĞLU ~ Assoc. Prof. İdil YAVUZ"
+date: "2022-12-02"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Import Data
+
+<https://www.kaggle.com/datasets/yasserhessein/early-stage-diabetes-risk-prediction-dataset>
+
+<https://archive-beta.ics.uci.edu/dataset/529/early+stage+diabetes+risk+prediction+dataset>
+
+Age 1.20-65 (y<="mean=48"<n)
+<br>
+Gender 1. Male, 2.Female
+<br>
+Polyuria 1.Yes, 2.No
+<br>
+Polydipsia 1.Yes, 2.No
+<br>
+sudden weight loss 1.Yes, 2.No
+<br>
+weakness 1.Yes, 2.No
+<br>
+Polyphagia 1.Yes, 2.No
+<br>
+Genital thrush 1.Yes, 2.No
+<br>
+visual blurring 1.Yes, 2.No
+<br>
+Itching 1.Yes, 2.No
+<br>
+Irritability 1.Yes, 2.No
+<br>
+delayed healing 1.Yes, 2.No
+<br>
+partial paresis 1.Yes, 2.No
+<br>
+muscle stiness 1.Yes, 2.No
+<br>
+Alopecia 1.Yes, 2.No
+<br>
+Obesity 1.Yes, 2.No
+<br>
+Class 1.Positive, 2.Negative
+<br>
+
+```{r message=FALSE, warning=FALSE}
+library(readr)
+df <- read_csv("diabetes_data_upload.csv")
+```
+
+```{r}
+summary(df$Age)
+```
+
+```{r}
+df$Age=as.factor(ifelse(df$Age <= 48, "0", "1"))
+df$Gender=as.factor(df$Gender)
+df$Polyuria=as.factor(df$Polyuria)
+df$Polydipsia=as.factor(df$Polydipsia)
+df$`sudden weight loss`=as.factor(df$`sudden weight loss`)
+df$weakness=as.factor(df$weakness)
+df$Polyphagia=as.factor(df$Polyphagia)
+df$`Genital thrush`=as.factor(df$`Genital thrush`)
+df$`visual blurring`=as.factor(df$`visual blurring`)
+df$Itching=as.factor(df$Itching)
+df$Irritability=as.factor(df$Irritability)
+df$`delayed healing`=as.factor(df$`delayed healing`)
+df$`partial paresis`=as.factor(df$`partial paresis`)
+df$`muscle stiffness`=as.factor(df$`muscle stiffness`)
+df$Alopecia=as.factor(df$Alopecia)
+df$Obesity=as.factor(df$Obesity)
+df$class=as.factor(df$class)
+```
+
+```{r}
+colnames(df)=c("Age","Gender","Polyuria","Polydipsia","Sudden.weight.loss",
+                 "weakness","Polyphagia","Genital.thrush","visual.blurring",
+                 "Itching","Irritability","delayed.healing","partial.paresis",
+                 "muscle.stiffness","Alopecia","Obesity","Class")
+```
+
+```{r}
+summary(df)
+```
+
+# Full Model Glm
+
+```{r message=FALSE, warning=FALSE}
+library(caret)
+```
+
+```{r}
+set.seed(8)
+Train=createDataPartition(df$Class,
+                          p=0.96,
+                          list = FALSE)
+training=df[Train,]
+testing=df[-Train,]
+dim(training)
+dim(testing)
+```
+
+```{r}
+summary(testing)
+```
+
+```{r}
+summary(training)
+```
+
+```{r}
+set.seed(8)
+ctrl=trainControl(method = "cv",
+                      number = 10,
+                      savePredictions=TRUE,
+                      classProbs=TRUE)
+```
+
+```{r}
+set.seed(8)
+model=train(Class~.,
+            data = training,
+            method="glm",
+            family="binomial",
+            trControl=ctrl)
+```
+
+```{r}
+print(model)
+```
+
+```{r}
+summary(model)
+```
+
+```{r}
+pred_train<-predict(model,
+                    newdata = training, 
+                    type = "raw")
+pred_test<-predict(model,
+                   newdata = testing,
+                   type = "raw")
+```
+
+```{r}
+table(pred_train, training$Class)
+```
+
+```{r}
+table(pred_test, testing$Class)
+```
+
+```{r include=FALSE}
+(sens_train=yardstick::sens_vec(training$Class, pred_train))
+(sens_test=yardstick::sens_vec(testing$Class, pred_test))
+```
+
+```{r include=FALSE}
+(spec_train=yardstick::specificity_vec(training$Class, pred_train))
+(spec_test=yardstick::specificity_vec(testing$Class, pred_test))
+```
+
+```{r}
+library(ROCR)
+```
+
+```{r}
+prob=predict(model,
+             newdata=testing, 
+             type="raw")
+pred=prediction(as.numeric(prob),
+                testing$Class)
+perf=performance(pred,
+                 measure = "tpr",
+                 x.measure = "fpr")
+plot(perf)
+```
+
+```{r}
+auc=performance(pred, measure = "auc")
+(auc=auc@y.values[[1]])
+```
+
+# Number of Feature = 6
+
+## Information gain
+
+```{r}
+library(FSelector)
+```
+
+```{r}
+weights_inf <- information.gain(Class~., training)
+
+subset_inf <- cutoff.k(weights_inf, 6)
+
+(f_inf <- as.simple.formula(subset_inf, "Class"))
+```
+
+```{r}
+set.seed(8)
+model_inf=train(Class ~ Polyuria + Polydipsia + Gender + Sudden.weight.loss + 
+    partial.paresis + Polyphagia,
+            data = training,
+            method="glm",
+            family="binomial",
+            trControl=ctrl)
+```
+
+```{r}
+print(model_inf)
+```
+
+```{r}
+summary(model_inf)
+```
+
+```{r}
+pred_inf_train<-predict(model_inf,
+                    newdata = training, 
+                    type = "raw")
+pred_inf_test<-predict(model_inf,
+                   newdata = testing,
+                   type = "raw")
+```
+
+```{r}
+table(pred_inf_train, training$Class)
+```
+
+```{r}
+table(pred_inf_test, testing$Class)
+```
+
+```{r include=FALSE}
+(sens_inf_train=yardstick::sens_vec(training$Class, pred_inf_train))
+(sens_inf_test=yardstick::sens_vec(testing$Class, pred_inf_test))
+```
+
+```{r include=FALSE}
+(spec_inf_train=yardstick::specificity_vec(training$Class, pred_inf_train))
+(spec_inf_test=yardstick::specificity_vec(testing$Class, pred_inf_test))
+```
+
+```{r}
+prob_inf=predict(model_inf,
+             newdata=testing, 
+             type="raw")
+pred_inf=prediction(as.numeric(prob_inf),
+                testing$Class)
+perf_inf=performance(pred_inf,
+                 measure = "tpr",
+                 x.measure = "fpr")
+plot(perf_inf)
+```
+
+```{r}
+auc_inf=performance(pred_inf, measure = "auc")
+(auc_inf=auc_inf@y.values[[1]])
+```
+
+## Gain ratio
+
+```{r}
+weights_gain <- gain.ratio(Class~., training)
+
+subset_gain <- cutoff.k(weights_gain, 6)
+
+(f_gain <- as.simple.formula(subset_gain, "Class"))
+```
+
+```{r}
+set.seed(8)
+model_gain=train(Class ~ Polyuria + Polydipsia + Gender + Sudden.weight.loss + 
+    partial.paresis + Irritability,
+            data = training,
+            method="glm",
+            family="binomial",
+            trControl=ctrl)
+```
+
+```{r}
+print(model_gain)
+```
+
+```{r}
+summary(model_gain)
+```
+
+```{r}
+pred_gain_train<-predict(model_gain,
+                    newdata = training, 
+                    type = "raw")
+pred_gain_test<-predict(model_gain,
+                   newdata = testing,
+                   type = "raw")
+```
+
+```{r}
+table(pred_gain_train, training$Class)
+```
+
+```{r}
+table(pred_gain_test, testing$Class)
+```
+
+```{r include=FALSE}
+(sens_gain_train=yardstick::sens_vec(training$Class, pred_gain_train))
+(sens_gain_test=yardstick::sens_vec(testing$Class, pred_gain_test))
+```
+
+```{r include=FALSE}
+(spec_gain_train=yardstick::specificity_vec(training$Class, pred_gain_train))
+(spec_gain_test=yardstick::specificity_vec(testing$Class, pred_gain_test))
+```
+
+```{r}
+prob_gain=predict(model_gain,
+             newdata=testing, 
+             type="raw")
+pred_gain=prediction(as.numeric(prob_gain),
+                testing$Class)
+perf_gain=performance(pred_gain,
+                 measure = "tpr",
+                 x.measure = "fpr")
+plot(perf_gain)
+```
+
+```{r}
+auc_gain=performance(pred_gain, measure = "auc")
+(auc_gain=auc_gain@y.values[[1]])
+```
+
+## Symmetrical uncertainty
+
+```{r}
+weights_sym <- symmetrical.uncertainty(Class~., training)
+
+subset_sym <- cutoff.k(weights_sym, 6)
+
+(f_sym <- as.simple.formula(subset_sym, "Class"))
+```
+
+```{r}
+set.seed(8)
+model_sym=train(Class ~ Polyuria + Polydipsia + Gender + Sudden.weight.loss + 
+    partial.paresis + Polyphagia,
+            data = training,
+            method="glm",
+            family="binomial",
+            trControl=ctrl)
+```
+
+```{r}
+print(model_sym)
+```
+
+```{r}
+summary(model_sym)
+```
+
+```{r}
+pred_sym_train<-predict(model_sym,
+                    newdata = training, 
+                    type = "raw")
+pred_sym_test<-predict(model_sym,
+                   newdata = testing,
+                   type = "raw")
+```
+
+```{r}
+table(pred_sym_train, training$Class)
+```
+
+```{r}
+table(pred_sym_test, testing$Class)
+```
+
+```{r include=FALSE}
+(sens_sym_train=yardstick::sens_vec(training$Class, pred_sym_train))
+(sens_sym_test=yardstick::sens_vec(testing$Class, pred_sym_test))
+```
+
+```{r include=FALSE}
+(spec_sym_train=yardstick::specificity_vec(training$Class, pred_sym_train))
+(spec_sym_test=yardstick::specificity_vec(testing$Class, pred_sym_test))
+```
+
+```{r}
+prob_sym=predict(model_sym,
+             newdata=testing, 
+             type="raw")
+pred_sym=prediction(as.numeric(prob_sym),
+                testing$Class)
+perf_sym=performance(pred_sym,
+                 measure = "tpr",
+                 x.measure = "fpr")
+plot(perf_sym)
+```
+
+```{r}
+auc_sym=performance(pred_sym, measure = "auc")
+(auc_sym=auc_sym@y.values[[1]])
+```
+
+## Chi-square
+
+```{r}
+weights_chi <- chi.squared(Class~., training)
+
+subset_chi <- cutoff.k(weights_chi, 6)
+
+(f_chi <- as.simple.formula(subset_chi, "Class"))
+```
+
+```{r}
+set.seed(8)
+model_chi=train(Class ~ Polyuria + Polydipsia + Gender + Sudden.weight.loss + 
+    partial.paresis + Polyphagia,
+            data = training,
+            method="glm",
+            family="binomial",
+            trControl=ctrl)
+```
+
+```{r}
+print(model_chi)
+```
+
+```{r}
+summary(model_chi)
+```
+
+```{r}
+pred_chi_train<-predict(model_chi,
+                    newdata = training, 
+                    type = "raw")
+pred_chi_test<-predict(model_chi,
+                   newdata = testing,
+                   type = "raw")
+```
+
+```{r}
+table(pred_chi_train, training$Class)
+```
+
+```{r}
+table(pred_chi_test, testing$Class)
+```
+
+```{r include=FALSE}
+(sens_chi_train=yardstick::sens_vec(training$Class, pred_chi_train))
+(sens_chi_test=yardstick::sens_vec(testing$Class, pred_chi_test))
+```
+
+```{r include=FALSE}
+(spec_chi_train=yardstick::specificity_vec(training$Class, pred_chi_train))
+(spec_chi_test=yardstick::specificity_vec(testing$Class, pred_chi_test))
+```
+
+```{r}
+prob_chi=predict(model_chi,
+             newdata=testing, 
+             type="raw")
+pred_chi=prediction(as.numeric(prob_chi),
+                testing$Class)
+perf_chi=performance(pred_chi,
+                 measure = "tpr",
+                 x.measure = "fpr")
+plot(perf_chi)
+```
+
+```{r}
+auc_chi=performance(pred_chi, measure = "auc")
+(auc_chi=auc_chi@y.values[[1]])
+```
+
+## Cramer
+
+```{r message=FALSE, warning=FALSE}
+library(FSinR)
+```
+
+```{r}
+cramer_evaluator <- cramer()
+weights_cra<-cramer_evaluator(training,'Class',c("Age","Gender","Polyuria","Polydipsia","Sudden.weight.loss",
+                 "weakness","Polyphagia","Genital.thrush","visual.blurring",
+                 "Itching","Irritability","delayed.healing","partial.paresis",
+                 "muscle.stiffness","Alopecia","Obesity"))
+
+sort(weights_cra, decreasing = TRUE)
+```
+
+```{r}
+set.seed(8)
+model_cra=train(Class ~ Polyuria + Polydipsia + Gender + Sudden.weight.loss + 
+    partial.paresis + Polyphagia,
+            data = training,
+            method="glm",
+            family="binomial",
+            trControl=ctrl)
+```
+
+```{r}
+print(model_cra)
+```
+
+```{r}
+summary(model_cra)
+```
+
+```{r}
+pred_cra_train<-predict(model_cra,
+                    newdata = training, 
+                    type = "raw")
+pred_cra_test<-predict(model_cra,
+                   newdata = testing,
+                   type = "raw")
+```
+
+```{r}
+table(pred_cra_train, training$Class)
+```
+
+```{r}
+table(pred_cra_test, testing$Class)
+```
+
+```{r include=FALSE}
+(sens_cra_train=yardstick::sens_vec(training$Class, pred_cra_train))
+(sens_cra_test=yardstick::sens_vec(testing$Class, pred_cra_test))
+```
+
+```{r include=FALSE}
+(spec_cra_train=yardstick::specificity_vec(training$Class, pred_cra_train))
+(spec_cra_test=yardstick::specificity_vec(testing$Class, pred_cra_test))
+```
+
+```{r}
+prob_cra=predict(model_cra,
+             newdata=testing, 
+             type="raw")
+pred_cra=prediction(as.numeric(prob_cra),
+                testing$Class)
+perf_cra=performance(pred_cra,
+                 measure = "tpr",
+                 x.measure = "fpr")
+plot(perf_cra)
+```
+
+```{r}
+auc_cra=performance(pred_cra, measure = "auc")
+(auc_cra=auc_cra@y.values[[1]])
+```
+
+## OneR
+
+```{r}
+weights_oneR <- oneR(Class~., training)
+
+subset_oneR <- cutoff.k(weights_oneR, 6)
+
+(f_oneR <- as.simple.formula(subset_oneR, "Class"))
+```
+
+```{r}
+set.seed(8)
+model_oneR=train(Class ~ Polyuria + Polydipsia + Sudden.weight.loss + partial.paresis + 
+    Gender + Alopecia,
+            data = training,
+            method="glm",
+            family="binomial",
+            trControl=ctrl)
+```
+
+```{r}
+print(model_oneR)
+```
+
+```{r}
+summary(model_oneR)
+```
+
+```{r}
+pred_oneR_train<-predict(model_oneR,
+                    newdata = training, 
+                    type = "raw")
+pred_oneR_test<-predict(model_oneR,
+                   newdata = testing,
+                   type = "raw")
+```
+
+```{r}
+table(pred_oneR_train, training$Class)
+```
+
+```{r}
+table(pred_oneR_test, testing$Class)
+```
+
+```{r include=FALSE}
+(sens_oneR_train=yardstick::sens_vec(training$Class, pred_oneR_train))
+(sens_oneR_test=yardstick::sens_vec(testing$Class, pred_oneR_test))
+```
+
+```{r include=FALSE}
+(spec_oneR_train=yardstick::specificity_vec(training$Class, pred_oneR_train))
+(spec_oneR_test=yardstick::specificity_vec(testing$Class, pred_oneR_test))
+```
+
+```{r}
+prob_oneR=predict(model_oneR,
+             newdata=testing, 
+             type="raw")
+pred_oneR=prediction(as.numeric(prob_oneR),
+                testing$Class)
+perf_oneR=performance(pred_oneR,
+                 measure = "tpr",
+                 x.measure = "fpr")
+plot(perf_oneR)
+
+
+```
+
+```{r}
+auc_oneR=performance(pred_oneR, measure = "auc")
+(auc_oneR=auc_oneR@y.values[[1]])
+```
+
+# Result
+
+```{r include=FALSE}
+Cv_acc_inf=model_inf$results[2]
+Cv_kappa_inf=model_inf$results[3]
+Cv_aic_inf=model_inf$finalModel$aic
+```
+
+```{r include=FALSE}
+Cv_acc_gain=model_gain$results[2]
+Cv_kappa_gain=model_gain$results[3]
+Cv_aic_gain=model_gain$finalModel$aic
+```
+
+```{r include=FALSE}
+Cv_acc_sym=model_sym$results[2]		
+Cv_kappa_sym=model_sym$results[3]
+Cv_aic_sym=model_sym$finalModel$aic
+```
+
+```{r include=FALSE}
+Cv_acc_chi=model_chi$results[2]	
+Cv_kappa_chi=model_chi$results[3]
+Cv_aic_chi=model_chi$finalModel$aic
+```
+
+```{r include=FALSE}
+Cv_acc_cra=model_cra$results[2]		
+Cv_kappa_cra=model_cra$results[3]
+Cv_aic_cra=model_cra$finalModel$aic
+```
+
+```{r include=FALSE}
+Cv_acc_oneR=model_oneR$results[2]		
+Cv_kappa_oneR=model_oneR$results[3]
+Cv_aic_oneR=model_oneR$finalModel$aic
+```
+
+```{r}
+Cv_acc=model$results[2]
+Cv_kappa=model$results[3]
+Cv_aic=model$finalModel$aic
+```
+
+```{r include=FALSE}
+r_acc=rbind(auc, auc_inf, auc_gain, auc_sym, auc_chi, auc_cra, auc_oneR)
+
+r_cv_acc=rbind(Cv_acc, Cv_acc_inf, Cv_acc_gain, Cv_acc_sym, Cv_acc_chi, Cv_acc_cra, Cv_acc_oneR)
+
+r_cv_kappa=rbind(Cv_kappa,Cv_kappa_inf, Cv_kappa_gain, Cv_kappa_sym, Cv_kappa_chi, Cv_kappa_cra, Cv_kappa_oneR)
+
+r_cv_aic=rbind(Cv_aic,Cv_aic_inf, Cv_aic_gain, Cv_aic_sym, Cv_aic_chi, Cv_aic_cra, Cv_aic_oneR)
+
+```
+
+```{r include=FALSE}
+r=data.frame(r_acc,r_cv_acc,r_cv_kappa,r_cv_aic)
+
+row.names(r)=c("Full Model","Information Gain","Gain Ratio","Symmetrical Uncertainty","Chi-square","Cramer","OneR")
+colnames(r)=c("Test Accurancy", "CV Accurancy", "CV Kappa", "CV AIC")
+```
+
+```{r}
+d=data.frame(r_acc,r_cv_acc)
+row.names(d)=c("Full Model","Information Gain","Gain Ratio","Symmetrical Uncertainty","Chi-square","Cramer","OneR")
+colnames(d)=c("Validation Accurancy", "Cross Validation Accurancy")
+```
+
+```{r}
+rmarkdown::paged_table(d)
+```
+
+```{r}
+plot(perf_inf, col="deepskyblue", lwd=2,
+     main="Validation Accurancy")
+plot(perf_oneR, col="coral",lwd=2, add=T)
+abline(0,1)
+```
+
+```{r include=FALSE}
+specc=rbind(spec_train,spec_inf_train,spec_gain_train,spec_sym_train,spec_chi_train,spec_cra_train,spec_oneR_train)
+senss=rbind(sens_train,sens_inf_train,sens_gain_train,sens_sym_train,sens_chi_train,sens_cra_train,sens_oneR_train)
+c_train=data.frame(senss,specc)
+
+row.names(c_train)=c("Full Model","Information Gain","Gain Ratio","Symmetrical Uncertainty","Chi-square","Cramer","OneR")
+colnames(c_train)=c("Sensitivity","Specificity")
+```
+
+```{r include=FALSE}
+spec=rbind(spec_test,spec_inf_test,spec_gain_test,spec_sym_test,spec_chi_test,spec_cra_test,spec_oneR_test)
+sens=rbind(sens_test,sens_inf_test,sens_gain_test,sens_sym_test,sens_chi_test,sens_cra_test,sens_oneR_test)
+c_test=data.frame(sens,spec)
+
+row.names(c_test)=c("Full Model","Information Gain","Gain Ratio","Symmetrical Uncertainty","Chi-square","Cramer","OneR")
+colnames(c_test)=c("Sensitivity","Specificity")
+```
+
+```{r}
+rmarkdown::paged_table(c_train)
+```
+
+```{r}
+rmarkdown::paged_table(c_test)
+```
+
+```{r include=FALSE}
+gain_ratio=c(0.75,0.8700736,0.8939936,0.8939936,0.8939936,0.8639904,0.8639904,
+             0.8939528,0.8940328,0.8900328,0.8900328,0.9059936,0.9099936,
+             0.9099936,0.9119544,0.9583333)
+oner=c(0.75,0.8700736,0.8700736,0.8721144,0.8939936,0.9059952,0.9039544,
+       0.9039544,0.8999920,0.9059152,0.9059152,0.9098743,0.9180360,
+       0.9180360,0.9140360,0.9583333)
+symmetric=c(0.75,0.8700736,0.8939936,0.8939936,0.8939936,0.8919936,0.8639904,
+            0.8939528,0.8940328,0.8900328,0.8900328,0.9059936,0.9099936,
+            0.9099936,0.9119544,0.9583333)
+other=c(0.75,0.8700736,0.8939936,0.8939936,0.8939936,0.8919936,0.8639904,
+        0.8939528,0.8940328,0.8900328,0.8900328,0.9059936,0.9079936,
+        0.9099936,0.9119544,0.9583333)
+```
+
+```{r include=FALSE}
+c=c(gain_ratio,symmetric,oner,other)
+method=c("gain_ratio","gain_ratio","gain_ratio","gain_ratio","gain_ratio","gain_ratio","gain_ratio",
+    "gain_ratio","gain_ratio","gain_ratio","gain_ratio","gain_ratio","gain_ratio","gain_ratio","gain_ratio","gain_ratio",
+    "symmetric","symmetric","symmetric","symmetric","symmetric","symmetric","symmetric","symmetric","symmetric",
+    "symmetric","symmetric","symmetric","symmetric","symmetric","symmetric","symmetric",
+    "oner","oner","oner","oner","oner","oner","oner",
+    "oner","oner","oner","oner","oner","oner","oner","oner","oner",
+    "other","other","other","other","other","other","other","other","other",
+    "other","other","other","other","other","other","other")
+f=c(1:16,1:16,1:16,1:16)
+cvaa=data.frame(f,method,c)
+```
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+ggplot(cvaa, aes(x=f, y=c, color=method))+
+  geom_point(aes(color = method, shape=method))+
+  scale_color_brewer(palette="Dark2")+
+  geom_line(aes(color = method))+
+  labs(title = "Accuracy plot from cross validation by number of features", 
+       x = "Number of features", y="CV accurancy")+
+  theme(plot.title = element_text(color = "#828282", size = 12, face = "bold"),
+        axis.title.x = element_text(color = "darkgrey", size = 10, face = "bold"),
+        axis.title.y = element_text(color = "darkgrey", size = 10, face = "bold"),
+        legend.title = element_text(color = "#828282", size = 10, face = "bold"),
+        legend.background = element_rect(fill = "lightyellow"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
